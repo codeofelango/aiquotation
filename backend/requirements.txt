@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+asyncpg
+psycopg2-binary
+python-dotenv
+httpx
+pydantic
+langgraph
+numpy
+
