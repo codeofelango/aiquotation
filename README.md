@@ -125,8 +125,8 @@ A production-ready, AI-powered recommendation engine built with FastAPI, Next.js
    ```
 
 4. **Configure environment variables**
-   
-   Create `.env` file in `backend/` directory:
+
+   Create `.env` file in `backend/` directory (or copy from `backend/env.example`):
    ```env
    DATABASE_URL=postgresql://user:password@host:5432/dbname
    ML_API_BASE_URL=https://api.euron.one/api/v1/euri
@@ -143,19 +143,18 @@ A production-ready, AI-powered recommendation engine built with FastAPI, Next.js
    ```bash
    psql $DATABASE_URL -f ../database/schema.sql
    psql $DATABASE_URL -f ../database/seed_courses.sql
+   psql $DATABASE_URL -f ../database/seed_users.sql
    ```
 
-6. **Import user data**
+6. **Generate embeddings (recommended)**
+   
+   The backend will attempt background embedding generation on startup, but you can explicitly embed all missing items via:
    ```bash
-   python -m scripts.import_users_from_json --path ../users-with-journeys.json
+   curl -X POST http://localhost:8000/items/embed_all
    ```
+   (Requires `ML_API_KEY`.)
 
-7. **Generate embeddings**
-   ```bash
-   python -m scripts.generate_item_embeddings
-   ```
-
-8. **Start the server**
+7. **Start the server**
    ```bash
    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    ```
@@ -176,7 +175,14 @@ A production-ready, AI-powered recommendation engine built with FastAPI, Next.js
    npm install
    ```
 
-3. **Start development server**
+3. **(Optional) Configure backend URL**
+
+   Create `frontend/.env.local` (or copy from `frontend/env.local.example`):
+   ```env
+   NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+   ```
+
+4. **Start development server**
    ```bash
    npm run dev
    ```
