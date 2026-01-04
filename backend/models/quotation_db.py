@@ -1,0 +1,34 @@
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+
+class QuotationItemUpdate(BaseModel):
+    product_id: int
+    quantity: int
+    unit_price: float
+
+class QuotationUpdate(BaseModel):
+    client_name: Optional[str] = None
+    items: Optional[List[QuotationItemUpdate]] = None
+    summary: Optional[str] = None
+    status: Optional[str] = None
+
+class QuotationDB(BaseModel):
+    id: int
+    rfp_title: str
+    client_name: str
+    status: str
+    total_price: float
+    content: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AuditLogEntry(BaseModel):
+    id: int
+    action: str
+    changed_by: str
+    timestamp: datetime
+    change_details: Optional[str]

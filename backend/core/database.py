@@ -2,52 +2,59 @@ import asyncpg
 from typing import Any, List, Optional
 from .config import get_settings
 
-_pool: Optional[asyncpg.pool.Pool] = None
+pool: Optional[asyncpg.Pool] = None
 
+async def init_pool():
+    global pool
+    settings = get_settings()
+    dsn = settings.database_url
+    if not dsn:
+        dsn = f"postgresql://{settings.postgres_user}:{settings.postgres_password}@{settings.postgres_server}:{settings.postgres_port}/{settings.postgres_db}"
+    
+    try:
+        pool = await asyncpg.create_pool(dsn)
+        print("✅ Database connection pool created")
+    except Exception as e:
+        print(f"❌ Failed to create database pool: {e}")
+        raise e
 
-async def init_pool() -> None:
-	global _pool
-	if _pool is None:
-		settings = get_settings()
-		if not settings.database_url:
-			raise RuntimeError("DATABASE_URL is not set")
-		_pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=1, max_size=10)
+async def close_pool():
+    global pool
+    if pool:
+        await pool.close()
+        print("✅ Database connection pool closed")
 
+async def get_db_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        await init_pool()
+    if pool is None:
+        raise Exception("Database pool not initialized")
+    return pool
 
-async def close_pool() -> None:
-	global _pool
-	if _pool is not None:
-		await _pool.close()
-		_pool = None
+async def fetchval(query: str, *args) -> Any:
+    """Fetch a single value from the first row and column."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(query, *args)
 
+async def fetchrow(query: str, *args) -> Optional[asyncpg.Record]:
+    """Fetch a single row."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchrow(query, *args)
 
-def _ensure_pool() -> asyncpg.pool.Pool:
-	if _pool is None:
-		raise RuntimeError("Database pool is not initialized. Call init_pool() first.")
-	return _pool
+async def fetch(query: str, *args) -> List[asyncpg.Record]:
+    """Fetch multiple rows."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetch(query, *args)
 
+# Alias for compatibility if needed
+fetchall = fetch
 
-async def fetch(query: str, *args: Any) -> List[asyncpg.Record]:
-	pool = _ensure_pool()
-	async with pool.acquire() as conn:
-		return await conn.fetch(query, *args)
-
-
-async def fetchrow(query: str, *args: Any) -> Optional[asyncpg.Record]:
-	pool = _ensure_pool()
-	async with pool.acquire() as conn:
-		return await conn.fetchrow(query, *args)
-
-
-async def fetchval(query: str, *args: Any) -> Any:
-	pool = _ensure_pool()
-	async with pool.acquire() as conn:
-		return await conn.fetchval(query, *args)
-
-
-async def execute(query: str, *args: Any) -> str:
-	pool = _ensure_pool()
-	async with pool.acquire() as conn:
-		return await conn.execute(query, *args)
-
-
+async def execute(query: str, *args) -> str:
+    """Execute a command (INSERT, UPDATE, DELETE)."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        return await conn.execute(query, *args)

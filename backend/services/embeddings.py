@@ -1,68 +1,142 @@
-from typing import Iterable, List, Optional
+import asyncio
+import json
+import google.generativeai as genai
+from typing import List, Optional
+from core.config import get_settings
+from core.database import fetch, execute, fetchval
 
+# Optional import for OpenAI
 try:
-	from .ml_client import get_embedding
-	from ..core.database import fetch, fetchrow, execute
-	from ..core.utils import to_pgvector_literal
+    from openai import AsyncOpenAI
+    _HAS_OPENAI = True
 except ImportError:
-	from services.ml_client import get_embedding
-	from core.database import fetch, fetchrow, execute
-	from core.utils import to_pgvector_literal
+    _HAS_OPENAI = False
 
+settings = get_settings()
+
+if settings.google_api_key:
+    genai.configure(api_key=settings.google_api_key)
+
+openai_client = None
+if _HAS_OPENAI and settings.openai_api_key:
+    openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
 
 async def embed_text(text: str) -> List[float]:
-	return await get_embedding(text)
+    """
+    Generate embeddings for a single string using the configured provider.
+    """
+    text = text.replace("\n", " ") # Common cleanup
+    provider = settings.llm_provider.lower()
+    model = settings.embedding_model_name
 
+    if provider == "google":
+        try:
+            # Google's text-embedding-004
+            result = genai.embed_content(
+                model=model,
+                content=text,
+                task_type="retrieval_document", 
+                title=None
+            )
+            return result['embedding']
+        except Exception as e:
+            print(f"Google Embedding Error: {e}")
+            # Fallback mock (768 dim is standard for Gemini embeddings)
+            return [0.0] * 768
 
-async def embed_and_store_user(user_id: int, summary_text: str) -> List[float]:
-	vec = await embed_text(summary_text)
-	vec_lit = to_pgvector_literal(vec)
-	await execute(
-		"""
-		INSERT INTO embeddings_users (user_id, embedding)
-		VALUES ($1, $2::vector)
-		ON CONFLICT (user_id) DO UPDATE SET embedding = EXCLUDED.embedding
-		""",
-		int(user_id),
-		vec_lit,
-	)
-	return vec
-
+    elif provider == "openai":
+        if not _HAS_OPENAI:
+            raise ImportError("OpenAI provider selected but 'openai' package is not installed.")
+        if not openai_client: 
+            raise ValueError("OpenAI Key missing")
+            
+        resp = await openai_client.embeddings.create(input=[text], model=model)
+        return resp.data[0].embedding
+    
+    else:
+        # Mock
+        return [0.01] * 768
 
 async def get_cached_user_embedding(user_id: int) -> Optional[List[float]]:
-	row = await fetchrow("SELECT embedding FROM embeddings_users WHERE user_id = $1", int(user_id))
-	if not row or row["embedding"] is None:
-		return None
-	# asyncpg returns vector as string like '[..]'; parse to floats
-	raw = row["embedding"]
-	if isinstance(raw, str):
-		raw = raw.strip().strip("[]")
-		if not raw:
-			return None
-		return [float(x) for x in raw.split(",")]
-	return None
+    """
+    Retrieve the stored embedding for a user profile.
+    """
+    row = await fetchval("SELECT embedding FROM users WHERE id = $1", user_id)
+    if row:
+        if isinstance(row, str):
+            try:
+                return json.loads(row)
+            except:
+                return None
+        return row
+    return None
 
+async def embed_and_store_user(user_id: int, text: str):
+    """
+    Generate embedding for user profile text and store it.
+    """
+    vector = await embed_text(text)
+    if vector:
+        await execute("UPDATE users SET embedding = $1 WHERE id = $2", str(vector), user_id)
+    return vector
 
-async def embed_and_store_item(item_id: int, text: str) -> None:
-	vec = await embed_text(text)
-	vec_lit = to_pgvector_literal(vec)
-	await execute(
-		"UPDATE items SET embedding = $1::vector WHERE id = $2",
-		vec_lit,
-		int(item_id),
-	)
+async def embed_and_store_item(item_id: int, text: str):
+    """
+    Generate embedding for an item (course) and store it.
+    """
+    vector = await embed_text(text)
+    if vector:
+        await execute("UPDATE items SET embedding = $1 WHERE id = $2", str(vector), item_id)
+    return vector
 
+async def embed_and_store_product(product_id: int, text: str):
+    """
+    Generate embedding for a product (lighting fixture) and store it.
+    """
+    vector = await embed_text(text)
+    if vector:
+        await execute("UPDATE products SET embedding = $1 WHERE id = $2", str(vector), product_id)
+    return vector
 
-async def embed_all_items_missing(limit: int = 1000) -> int:
-	rows = await fetch(
-		"SELECT id, title, description FROM items WHERE embedding IS NULL ORDER BY id ASC LIMIT $1",
-		int(limit),
-	)
-	count = 0
-	for r in rows:
-		text = f"{r['title']}. {r['description']}"
-		await embed_and_store_item(r["id"], text)
-		count += 1
-	return count
+async def embed_all_items_missing(limit: int = 50):
+    """
+    Batch process items (courses) that don't have embeddings yet.
+    """
+    rows = await fetch("SELECT id, title, description FROM items WHERE embedding IS NULL LIMIT $1", limit)
+    count = 0
+    for row in rows:
+        text = f"{row['title']} {row['description']}"
+        await embed_and_store_item(row['id'], text)
+        count += 1
+    return count
 
-
+async def embed_all_products_missing(limit: int = 200):
+    """
+    Batch process products (lighting) that don't have embeddings yet.
+    """
+    # We fetch relevant columns to build a rich semantic string
+    rows = await fetch(
+        """
+        SELECT id, description, fixture_type, wattage, cct, ip_rating 
+        FROM products 
+        WHERE embedding IS NULL 
+        LIMIT $1
+        """, 
+        limit
+    )
+    count = 0
+    for row in rows:
+        # Construct a descriptive string for semantic search
+        # E.g. "Outdoor Wall Grazer 75W 3000K IP67..."
+        text = (
+            f"{row.get('fixture_type', '')} "
+            f"{row.get('description', '')} "
+            f"{row.get('wattage', '')} "
+            f"{row.get('cct', '')} "
+            f"{row.get('ip_rating', '')}"
+        ).strip()
+        
+        await embed_and_store_product(row['id'], text)
+        count += 1
+        
+    return count

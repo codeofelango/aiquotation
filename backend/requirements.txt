@@ -8,3 +8,7 @@ pydantic
 langgraph
 numpy
 pydantic[email]
+pypdf
+python-multipart
+google-generativeai
+pydantic-settings

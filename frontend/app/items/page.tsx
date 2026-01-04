@@ -80,14 +80,14 @@ export default async function ItemsPage() {
 						>
 							Add Course
 						</button>
-						<form action={embedAllAction}>
+						{/* <form action={embedAllAction}> */}
 							<button 
-								type="submit" 
+								type="submit" formAction={embedAllAction}
 								className="px-6 py-3 rounded-lg border-2 border-slate-300 font-semibold text-slate-700 bg-white/50 backdrop-blur-sm hover:border-slate-400"
 							>
 								Embed All
 							</button>
-						</form>
+						{/* </form> */}
 					</div>
 				</div>
 			</form>

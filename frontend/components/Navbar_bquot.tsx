@@ -11,15 +11,13 @@ export function Navbar() {
 					Users
 				</Link>
 				<Link href="/items" className="hover:text-brand">
-					Courses
+					Items
 				</Link>
 				<Link href="/abtest" className="hover:text-brand">
-					Experiments
-				</Link>
-				<Link href="/quotation" className="hover:text-brand text-teal-600 font-semibold">
-					✨ AI Quotation
+					A/B Tests
 				</Link>
 			</div>
 		</nav>
 	);
 }
+
