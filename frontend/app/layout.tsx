@@ -2,8 +2,8 @@ import "./globals.css";
 import React from "react";
 
 export const metadata = {
-	title: "Recs Dashboard - AI-Powered Recommendations",
-	description: "Modern, intuitive interface for personalized AI recommendations"
+	title: "AI Quotation - Intelligent Quotation Engine",
+	description: "World-class AI automation for lighting RFPs and product matching."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,5 +15,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 		</html>
 	);
 }
-
-

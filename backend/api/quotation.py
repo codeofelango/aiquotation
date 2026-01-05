@@ -1,34 +1,25 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Body
-from typing import List, Any, Dict
+from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Header
+from typing import List, Any, Dict, Optional
 import logging
 import json
 
 from services.pdf_processor import extract_text_from_pdf
 from agents.rfp_agent import run_quotation_flow
 from models.quotation_db import QuotationDB, QuotationUpdate, AuditLogEntry
-from models.rfp import RFPRequirement
 from core.database import fetchval, fetch, execute, fetchrow
 from services.vector_search import search_similar_products
 from services.embeddings import embed_text
+from core.activity_logger import log_user_activity # New import
 
 router = APIRouter(prefix="/quotation", tags=["quotation"])
 logger = logging.getLogger("uvicorn")
 
-async def log_audit(quotation_id: int, action: str, details: str, user: str = "Admin"):
-    try:
-        await execute(
-            """
-            INSERT INTO quotation_audit_log (quotation_id, action, changed_by, change_details)
-            VALUES ($1, $2, $3, $4)
-            """,
-            quotation_id, action, user, details
-        )
-    except Exception as e:
-        logger.error(f"Failed to write audit log: {e}")
-
 @router.post("/upload", response_model=QuotationDB)
-async def upload_and_process_rfp(file: UploadFile = File(...)) -> Any:
-    # ... existing upload logic ...
+async def upload_and_process_rfp(
+    file: UploadFile = File(...),
+    x_user_id: Optional[int] = Header(None),
+    x_user_email: Optional[str] = Header(None)
+) -> Any:
     logger.info(f"Processing RFP: {file.filename}")
     
     if not file.filename.lower().endswith('.pdf'):
@@ -57,7 +48,16 @@ async def upload_and_process_rfp(file: UploadFile = File(...)) -> Any:
             content_str
         )
         
-        await log_audit(q_id, "created", f"Created from file: {file.filename}")
+        # Log Activity
+        await log_user_activity(
+            user_id=x_user_id,
+            user_email=x_user_email,
+            action="Created Quotation",
+            entity_type="Quotation",
+            entity_id=q_id,
+            details={"filename": file.filename, "value": ai_quotation.total_price}
+        )
+        
         row = await fetchrow("SELECT * FROM quotations WHERE id = $1", q_id)
         return _map_row_to_model(row)
         
@@ -67,7 +67,7 @@ async def upload_and_process_rfp(file: UploadFile = File(...)) -> Any:
         logger.error(f"Error processing upload: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
-# ... existing list/get endpoints ...
+# ... (Rest of existing endpoints list/get remain same) ...
 
 @router.get("/list", response_model=List[QuotationDB])
 async def list_quotations():
@@ -90,7 +90,12 @@ async def get_quotation(id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{id}/update")
-async def update_quotation(id: int, payload: QuotationUpdate):
+async def update_quotation(
+    id: int, 
+    payload: QuotationUpdate,
+    x_user_id: Optional[int] = Header(None),
+    x_user_email: Optional[str] = Header(None)
+):
     try:
         current_row = await fetchrow("SELECT content FROM quotations WHERE id = $1", id)
         if not current_row:
@@ -117,7 +122,15 @@ async def update_quotation(id: int, payload: QuotationUpdate):
             new_total = sum(m.get("price", 0) for m in matches)
             content["total_price"] = new_total
             await execute("UPDATE quotations SET total_price = $1 WHERE id = $2", new_total, id)
-            await log_audit(id, "updated_items", "Modified quantities/prices")
+            
+            await log_user_activity(
+                user_id=x_user_id,
+                user_email=x_user_email,
+                action="Updated Pricing/Qty",
+                entity_type="Quotation",
+                entity_id=id,
+                details={"new_total": new_total}
+            )
 
         await execute(
             "UPDATE quotations SET content = $1, updated_at = NOW() WHERE id = $2", 
@@ -129,12 +142,13 @@ async def update_quotation(id: int, payload: QuotationUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{id}/rematch")
-async def rematch_quotation(id: int, requirements: List[Dict[str, Any]] = Body(...)):
-    """
-    Takes updated requirements, re-runs vector search, and updates the quotation matches.
-    """
+async def rematch_quotation(
+    id: int, 
+    requirements: List[Dict[str, Any]] = Body(...),
+    x_user_id: Optional[int] = Header(None),
+    x_user_email: Optional[str] = Header(None)
+):
     try:
-        # 1. Get current quotation
         current_row = await fetchrow("SELECT content FROM quotations WHERE id = $1", id)
         if not current_row:
             raise HTTPException(status_code=404, detail="Not found")
@@ -142,11 +156,8 @@ async def rematch_quotation(id: int, requirements: List[Dict[str, Any]] = Body(.
         content_val = current_row['content']
         content = json.loads(content_val) if isinstance(content_val, str) else content_val
         
-        # 2. Re-match logic
         new_matches = []
-        
         for req in requirements:
-            # Construct search text from the (potentially edited) fields
             search_text = (
                 f"{req.get('Fixture_Type', '')} {req.get('Installation_Type', '')} "
                 f"{req.get('Wattage', '')} {req.get('Color_Temperature', '')} "
@@ -158,7 +169,6 @@ async def rematch_quotation(id: int, requirements: List[Dict[str, Any]] = Body(.
 
             if not search_text: continue
                 
-            # Generate new embedding for the updated text
             embedding = await embed_text(search_text)
             candidates = await search_similar_products(embedding, top_k=5)
             
@@ -187,21 +197,35 @@ async def rematch_quotation(id: int, requirements: List[Dict[str, Any]] = Body(.
                     "quantity": qty_val,
                     "unit_price": float(best.get("price", 100.0)),
                     "price": float(best.get("price", 100.0)) * qty_val,
-                    # Add dummy image if missing
-                    "image_url": f"https://placehold.co/100x100?text={best.get('title', 'Img')[:3]}"
+                    "image_url": f"https://placehold.co/100x100?text={best.get('title', 'Img')[:3]}",
+                    "alternatives": [
+                        {
+                            "id": a["id"], 
+                            "title": a["title"], 
+                            "description": a.get("description", ""), 
+                            "price": float(a.get("price", 0)), 
+                            "score": a.get("score", 0)
+                        } for a in alts
+                    ]
                 })
 
-        # 3. Update content
         content["requirements"] = requirements
         content["matches"] = new_matches
         content["total_price"] = sum(m["price"] for m in new_matches)
         
-        # 4. Save
         await execute(
             "UPDATE quotations SET content = $1, total_price = $2, updated_at = NOW() WHERE id = $3", 
             json.dumps(content), content["total_price"], id
         )
-        await log_audit(id, "rematch", "Regenerated matches from updated specs")
+        
+        await log_user_activity(
+            user_id=x_user_id,
+            user_email=x_user_email,
+            action="Regenerated Matches",
+            entity_type="Quotation",
+            entity_id=id,
+            details={"match_count": len(new_matches)}
+        )
         
         return {"status": "success", "matches": new_matches, "total_price": content["total_price"]}
 
@@ -210,13 +234,26 @@ async def rematch_quotation(id: int, requirements: List[Dict[str, Any]] = Body(.
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{id}/status")
-async def set_status(id: int, status: str = Body(..., embed=True)):
+async def set_status(
+    id: int, 
+    status: str = Body(..., embed=True),
+    x_user_id: Optional[int] = Header(None),
+    x_user_email: Optional[str] = Header(None)
+):
     allowed = ["draft", "saved", "created", "printed", "sent", "re_changes"]
     if status not in allowed:
         raise HTTPException(status_code=400, detail=f"Invalid status. Allowed: {allowed}")
     
     await execute("UPDATE quotations SET status = $1, updated_at = NOW() WHERE id = $2", status, id)
-    await log_audit(id, "status_change", f"Status changed to {status}")
+    
+    await log_user_activity(
+        user_id=x_user_id,
+        user_email=x_user_email,
+        action="Updated Status",
+        entity_type="Quotation",
+        entity_id=id,
+        details={"new_status": status}
+    )
     return {"status": "success"}
 
 @router.get("/{id}/audit", response_model=List[AuditLogEntry])

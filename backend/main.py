@@ -13,6 +13,9 @@ from api.users import router as users_router
 from api.interactions import router as interactions_router
 from api.abtest import router as abtest_router
 from api.quotation import router as quotation_router
+from api.auth import router as auth_router
+from api.opportunities import router as opportunities_router
+from api.activity import router as activity_router # New Import
 from services.embeddings import embed_all_items_missing, embed_all_products_missing
 
 @asynccontextmanager
@@ -29,7 +32,6 @@ async def lifespan(app: FastAPI):
                 print(f"✅ Embedded {count} items.")
 
             # Check Products (Lighting)
-            # Ensure products table exists first to avoid errors on fresh init
             has_products_table = await fetchval(
                 "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'products')"
             )
@@ -37,16 +39,13 @@ async def lifespan(app: FastAPI):
                 missing_products = await fetchval("SELECT COUNT(*) FROM products WHERE embedding IS NULL")
                 if missing_products and missing_products > 0:
                     print(f"🔄 Found {missing_products} products without embeddings. Processing...")
-                    # Higher limit to process the bulk data faster
                     count = await embed_all_products_missing(limit=500) 
                     print(f"✅ Embedded {count} products.")
                     
         except Exception as e:
             print(f"⚠️  Background embedding generation check warning: {e}")
     
-    # Run embedding check in background (non-blocking)
     asyncio.create_task(check_embeddings())
-    
     yield
     await close_pool()
 
@@ -67,6 +66,9 @@ def create_app() -> FastAPI:
     app.include_router(interactions_router)
     app.include_router(abtest_router)
     app.include_router(quotation_router)
+    app.include_router(auth_router)
+    app.include_router(opportunities_router)
+    app.include_router(activity_router) # Registered
 
     @app.get("/")
     async def root():

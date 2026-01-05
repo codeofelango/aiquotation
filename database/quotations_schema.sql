@@ -80,3 +80,24 @@ INSERT INTO products (indoor_outdoor, installation_type, fixture_type, wattage, 
 ('Outdoor', 'Surfaced', 'Wall Grazer', '72W', 'RGBW', 'IP66', '60D', 'Remote Driver', 'Housing Color Brown', 'Ra>90', 'Standard', 'Outdoor Surfaced Wall Grazer 72W RGBW IP66 60D Remote Driver Brown'),
 ('Outdoor', 'Surfaced', 'Wall Grazer', '72W', '4000K', 'IP66', '12D', 'ON/OFF', 'Housing Color Dark Grey', 'Ra>90', 'Standard', 'Outdoor Surfaced Wall Grazer 72W 4000K IP66 12D ON/OFF Dark Grey'),
 ('Outdoor', 'Surfaced', 'Wall Grazer', '72W', '3000K', 'IP67', '30D', 'DALI', 'Housing Color Black', 'Ra>90', 'Connector', 'Outdoor Surfaced Wall Grazer 72W 3000K IP67 30D DALI Black');
+
+
+
+CREATE TABLE IF NOT EXISTS activity_log (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    user_email TEXT, -- Denormalized for easier querying if user deleted
+    action TEXT NOT NULL, -- e.g., "Created Quotation", "Added Product", "Updated Opportunity"
+    entity_type TEXT NOT NULL, -- "Quotation", "Product", "Opportunity"
+    entity_id INTEGER,
+    details JSONB, -- Flexible field for extra info (e.g., "Changed price from $100 to $120")
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for fast lookup by user or entity
+CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id);
+
+-- Index for fast lookup by user or entity
+CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id);

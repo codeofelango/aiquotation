@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
-import { getQuotation, updateQuotation, setQuotationStatus, rematchQuotation } from "@/lib/api";
+import { getQuotation, updateQuotation, setQuotationStatus, rematchQuotation, getOpportunities } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useParams, useRouter } from "next/navigation";
 
@@ -25,7 +25,7 @@ type QuotationItem = {
     unit_price?: number;
     reasoning: string;
     image_url?: string;
-    alternatives?: MatchCandidate[]; // Added for selection UI
+    alternatives?: MatchCandidate[];
 };
 
 type Requirement = {
@@ -51,6 +51,9 @@ export default function QuotationEditor() {
     const [requirements, setRequirements] = useState<Requirement[]>([]);
     const [items, setItems] = useState<QuotationItem[]>([]);
     const [clientName, setClientName] = useState("");
+    
+    // Client Suggestions
+    const [clientOptions, setClientOptions] = useState<string[]>([]);
 
     useEffect(() => {
         if (id) loadData();
@@ -58,9 +61,17 @@ export default function QuotationEditor() {
 
     async function loadData() {
         try {
-            const q = await getQuotation(Number(id));
+            const [q, ops] = await Promise.all([
+                getQuotation(Number(id)),
+                getOpportunities().catch(() => [])
+            ]);
+            
             setData(q);
             setClientName(q.content?.client_name || q.client_name || "");
+            
+            // Extract unique client names from opportunities for dropdown
+            const uniqueClients = Array.from(new Set(ops.map((o: any) => o.client_name))).filter(Boolean) as string[];
+            setClientOptions(uniqueClients);
             
             setRequirements(q.content?.requirements || []);
 
@@ -70,7 +81,6 @@ export default function QuotationEditor() {
                 quantity: m.quantity || 1,
                 unit_price: m.unit_price || (m.price / (m.quantity || 1)) || m.price || 0,
                 image_url: m.image_url || `https://placehold.co/100x100?text=${(m.product_title || 'Item').substring(0,3)}`,
-                // Ensure alternatives exist (even if mocked from reasoning string for old data)
                 alternatives: m.alternatives || [] 
             }));
             setItems(mappedItems);
@@ -96,7 +106,6 @@ export default function QuotationEditor() {
     const handleRegenerateMatches = async () => {
         setSaving(true);
         try {
-            // Call the real backend endpoint
             const res = await rematchQuotation(Number(id), requirements);
             
             const newMappedItems = (res.matches || []).map((m: any) => ({
@@ -111,7 +120,6 @@ export default function QuotationEditor() {
             setData((prev: any) => ({...prev, total_price: res.total_price}));
             
             alert("Matches regenerated based on updated specs!");
-            // Stay on specs tab to let them review the new matches
         } catch (e) {
             console.error(e);
             alert("Failed to regenerate matches. Ensure backend is running.");
@@ -122,7 +130,6 @@ export default function QuotationEditor() {
 
     const handleSelectAlternative = (matchIdx: number, alt: MatchCandidate) => {
         const newItems = [...items];
-        // Swap current item with selected alternative
         newItems[matchIdx] = {
             ...newItems[matchIdx],
             product_id: alt.id,
@@ -130,7 +137,6 @@ export default function QuotationEditor() {
             product_description: alt.description,
             unit_price: alt.price,
             price: alt.price * newItems[matchIdx].quantity,
-            // Keep reasoning but maybe note the manual swap?
             reasoning: `Manually selected: ${alt.title} (${(alt.score * 100).toFixed(0)}% match)`
         };
         setItems(newItems);
@@ -232,7 +238,6 @@ export default function QuotationEditor() {
                         </div>
 
                         {requirements.map((req: any, i: number) => {
-                            // Find match. We also check mapped items in case we regenerated
                             const match = (items || []).find((m: any) => 
                                 m.requirement_id === req.id || m.requirement_id === req.type_id
                             );
@@ -284,7 +289,7 @@ export default function QuotationEditor() {
                                                     <div className="mt-4 border-t border-slate-100 pt-3">
                                                         <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Switch to Alternative</div>
                                                         <div className="flex flex-col gap-2">
-                                                            {match.alternatives.map((alt: any, idx: number) => (
+                                                            {match.alternatives.slice(0, 3).map((alt: any, idx: number) => (
                                                                 <button 
                                                                     key={idx}
                                                                     onClick={() => handleSelectAlternative(items.indexOf(match), alt)}
@@ -318,7 +323,25 @@ export default function QuotationEditor() {
                             <h2 className="font-bold text-xl text-slate-800">Final Pricing</h2>
                         </div>
                         <div className="p-6">
-                            <div className="mb-6"><label className="block text-sm font-bold text-slate-700 mb-2">Client Name</label><input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full max-w-md px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-brand" /></div>
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Client Name</label>
+                                {/* Client Suggestions Dropdown */}
+                                <div className="relative max-w-md">
+                                    <input 
+                                        type="text" 
+                                        value={clientName} 
+                                        onChange={(e) => setClientName(e.target.value)}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-brand"
+                                        placeholder="Select or type client name..."
+                                        list="client-options"
+                                    />
+                                    <datalist id="client-options">
+                                        {clientOptions.map((client, idx) => (
+                                            <option key={idx} value={client} />
+                                        ))}
+                                    </datalist>
+                                </div>
+                            </div>
                             <table className="w-full">
                                 <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500 uppercase">
                                     <tr><th className="px-4 py-3">RFP Ref</th><th className="px-4 py-3">Product</th><th className="px-4 py-3 w-32">Qty</th><th className="px-4 py-3 w-40">Price</th><th className="px-4 py-3 w-40 text-right">Total</th></tr>
