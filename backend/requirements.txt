@@ -12,3 +12,5 @@ pypdf
 python-multipart
 google-generativeai
 pydantic-settings
+bcrypt
+fastapi-mail

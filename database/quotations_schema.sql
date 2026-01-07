@@ -101,3 +101,13 @@ CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, enti
 -- Index for fast lookup by user or entity
 CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_log(entity_type, entity_id);
+
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_code TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_code TEXT;
+
+-- Set default password for existing users (e.g., "password123")
+-- Hash: $2b$12$eX... (This is just a placeholder, in real app generate new)
+-- For dev simplicity, we might just leave them null and require reset or new registration.

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
+import { login } from "@/lib/auth";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -18,28 +19,18 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const res = await fetch("http://localhost:8000/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.detail || "Login failed");
-            }
-
-            const data = await res.json();
-            
-            // Store user in localStorage (Simple Client-Side Auth)
-            localStorage.setItem("user", JSON.stringify(data.user));
-            localStorage.setItem("token", data.token);
-            
-            // Redirect to Dashboard
+            // Uses the centralized auth helper
+            await login(email, password);
             router.push("/quotation");
             
         } catch (err: any) {
             setError(err.message);
+            // If email is not verified, suggest verifying
+            if (err.message.includes("verified")) {
+                setTimeout(() => {
+                    router.push(`/verify?email=${encodeURIComponent(email)}`);
+                }, 2000);
+            }
         } finally {
             setLoading(false);
         }
@@ -77,7 +68,12 @@ export default function LoginPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1">Password</label>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="block text-sm font-semibold text-slate-700">Password</label>
+                                <Link href="/reset-password" class="text-xs text-brand hover:underline font-medium">
+                                    Forgot Password?
+                                </Link>
+                            </div>
                             <input 
                                 type="password" 
                                 required
@@ -99,8 +95,8 @@ export default function LoginPage() {
                         </button>
                     </form>
                     
-                    <div className="mt-6 text-center text-xs text-slate-400">
-                        Don't have an account? Contact IT Support.
+                    <div className="mt-8 pt-6 border-t border-slate-100 text-center text-sm text-slate-500">
+                        Don't have an account? <Link href="/register" className="text-brand font-bold hover:underline">Create one</Link>
                     </div>
                 </div>
             </div>
