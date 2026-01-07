@@ -111,3 +111,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_code TEXT;
 -- Set default password for existing users (e.g., "password123")
 -- Hash: $2b$12$eX... (This is just a placeholder, in real app generate new)
 -- For dev simplicity, we might just leave them null and require reset or new registration.
+
+
+-- Add image_url column if it doesn't exist
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+-- Optional: Set a default placeholder for existing rows
+UPDATE products 
+SET image_url = '/placeholder-fixture.png' 
+WHERE image_url IS NULL;

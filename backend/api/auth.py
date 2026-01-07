@@ -49,28 +49,21 @@ def generate_code():
 
 # --- Direct Bcrypt Implementation ---
 def hash_password(password: str) -> str:
-    # Ensure password is utf-8 bytes and truncate to 72 bytes (bcrypt limit)
     pwd_bytes = password.encode('utf-8')
-    if len(pwd_bytes) > 72:
-        pwd_bytes = pwd_bytes[:72]
-        
+    if len(pwd_bytes) > 72: pwd_bytes = pwd_bytes[:72]
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     pwd_bytes = plain_password.encode('utf-8')
-    if len(pwd_bytes) > 72:
-        pwd_bytes = pwd_bytes[:72]
-        
+    if len(pwd_bytes) > 72: pwd_bytes = pwd_bytes[:72]
     try:
-        # Hashed password from DB must be bytes for checkpw
         return bcrypt.checkpw(pwd_bytes, hashed_password.encode('utf-8'))
     except ValueError:
         return False
 
-# --- Helper to send email in background ---
+# --- Helper to send email ---
 async def send_email_background(email: str, subject: str, body: str):
-    # Only try sending if credentials are set, otherwise mock log
     if not settings.mail_password:
         print(f"📧 [MOCK EMAIL to {email}] {subject} \n {body[:50]}...")
         return
@@ -86,6 +79,8 @@ async def send_email_background(email: str, subject: str, body: str):
         await fm.send_message(message)
     except Exception as e:
         print(f"❌ Failed to send email to {email}: {e}")
+
+# --- Endpoints ---
 
 @router.post("/register")
 async def register(payload: RegisterRequest, background_tasks: BackgroundTasks):
@@ -156,7 +151,7 @@ async def login(payload: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials")
         
     if not user['is_verified']:
-        raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
+        raise HTTPException(status_code=403, detail="Email not verified")
     
     return {
         "token": f"mock-jwt-{user['id']}",
@@ -168,6 +163,7 @@ async def forgot_password(background_tasks: BackgroundTasks, payload: dict = Bod
     email = payload.get("email")
     user = await fetchrow("SELECT id FROM users WHERE email = $1", email)
     if not user:
+        # Return success to prevent email enumeration
         return {"status": "success", "message": "If account exists, code sent"}
         
     code = generate_code()

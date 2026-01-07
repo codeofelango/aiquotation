@@ -19,13 +19,11 @@ export default function LoginPage() {
         setError("");
 
         try {
-            // Uses the centralized auth helper
             await login(email, password);
             router.push("/quotation");
             
         } catch (err: any) {
             setError(err.message);
-            // If email is not verified, suggest verifying
             if (err.message.includes("verified")) {
                 setTimeout(() => {
                     router.push(`/verify?email=${encodeURIComponent(email)}`);
@@ -70,7 +68,8 @@ export default function LoginPage() {
                         <div>
                             <div className="flex justify-between items-center mb-1">
                                 <label className="block text-sm font-semibold text-slate-700">Password</label>
-                                <Link href="/reset-password" class="text-xs text-brand hover:underline font-medium">
+                                {/* FIXED: Changed class to className */}
+                                <Link href="/reset-password" className="text-xs text-brand hover:underline font-medium">
                                     Forgot Password?
                                 </Link>
                             </div>

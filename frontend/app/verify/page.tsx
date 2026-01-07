@@ -14,11 +14,13 @@ function VerifyForm() {
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
     const [error, setError] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
 
     const handleVerify = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
+        setSuccessMsg("");
         
         try {
             const res = await fetch("http://localhost:8000/auth/verify", {
@@ -48,6 +50,8 @@ function VerifyForm() {
         }
         setResending(true);
         setError("");
+        setSuccessMsg("");
+
         try {
             const res = await fetch("http://localhost:8000/auth/resend-code", {
                 method: "POST",
@@ -56,7 +60,7 @@ function VerifyForm() {
             });
             
             if (res.ok) {
-                alert(`New code sent to ${email}`);
+                setSuccessMsg(`New code sent to ${email}`);
             } else {
                 const data = await res.json();
                 throw new Error(data.message || "Failed to resend");
@@ -83,6 +87,12 @@ function VerifyForm() {
                     ⚠️ {error}
                 </div>
             )}
+            
+            {successMsg && (
+                <div className="mb-6 p-3 bg-green-50 text-green-600 text-sm rounded-lg border border-green-100 flex items-center gap-2">
+                    ✅ {successMsg}
+                </div>
+            )}
 
             <form onSubmit={handleVerify} className="space-y-4">
                 <div>
@@ -103,8 +113,8 @@ function VerifyForm() {
                     <button 
                         type="button"
                         onClick={handleResend}
-                        disabled={resending}
-                        className="text-brand font-bold underline hover:text-brand-dark disabled:opacity-50"
+                        disabled={resending || !email}
+                        className="text-brand font-bold underline hover:text-brand-dark disabled:opacity-50 disabled:no-underline disabled:text-slate-400"
                     >
                         {resending ? "Sending..." : "Send Again"}
                     </button>
