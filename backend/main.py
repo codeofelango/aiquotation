@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+# Absolute imports
 from core.config import get_settings
 from core.database import init_pool, close_pool, fetchval
 from api.recommend import router as recommend_router
@@ -15,8 +16,9 @@ from api.quotation import router as quotation_router
 from api.auth import router as auth_router
 from api.opportunities import router as opportunities_router
 from api.activity import router as activity_router
-# New Import
 from api.email_bot import router as email_bot_router
+# New Import
+from api.rag import router as rag_router 
 from services.embeddings import embed_all_items_missing, embed_all_products_missing
 
 @asynccontextmanager
@@ -57,8 +59,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(opportunities_router)
     app.include_router(activity_router)
-    # Register Bot
     app.include_router(email_bot_router)
+    # Register RAG
+    app.include_router(rag_router)
 
     @app.get("/")
     async def root(): return {"status": "ok", "system": "Project Phoenix"}

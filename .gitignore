@@ -33,6 +33,8 @@ backend/.venv/
 backend/venv/
 backend/ENV/
 backend/env/
+backend/credentials.json
+backend/token.json
 
 # Environment Variables
 .env

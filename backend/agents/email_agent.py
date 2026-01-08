@@ -4,13 +4,17 @@ from langgraph.graph import StateGraph, END
 
 from services.ml_client import chat_reasoning
 from agents.rfp_agent import run_quotation_flow
+from core.database import fetchval
+from core.config import get_settings
+
+settings = get_settings()
 
 # State Definition
 class EmailState(TypedDict):
     email_subject: str
     email_body: str
     sender: str
-    intent: str # 'rfp', 'status_check', 'other'
+    intent: str 
     quotation_id: Optional[int]
     draft_reply: str
     error: Optional[str]
@@ -32,22 +36,40 @@ async def analyze_intent_node(state: EmailState) -> EmailState:
     return state
 
 async def generate_quote_node(state: EmailState) -> EmailState:
-    """If RFP, runs the full Quotation Engine."""
+    """If RFP, runs the full Quotation Engine and saves to DB."""
     if 'rfp' in state['intent']:
         try:
-            # We treat the email body/attachment text as the input for the RFP agent
-            # In a real app, you'd extract attachment text here.
-            # For now, we assume specs are in the body.
+            # 1. Run the AI Quotation Flow
             quotation = await run_quotation_flow(state['email_body'])
             
-            # In a real app, you would save this to DB here and get ID
-            # Mocking ID for the draft
-            state['quotation_id'] = 999 
+            # 2. Prepare for Database
+            content_json = quotation.model_dump(mode='json')
+            content_str = json.dumps(content_json)
             
-            summary = f"Generated Quote with {len(quotation.matches)} items. Total: ${quotation.total_price:,.2f}"
-            state['draft_reply'] = summary # Temp storage
+            # 3. Insert into Database as 'draft'
+            # This makes it appear in the "Pending Review" dashboard immediately
+            q_id = await fetchval(
+                """
+                INSERT INTO quotations (rfp_title, client_name, status, total_price, content)
+                VALUES ($1, $2, 'draft', $3, $4)
+                RETURNING id
+                """,
+                quotation.rfp_title or state['email_subject'], # Fallback to subject if AI didn't name it
+                state['sender'], # Use sender email/name as client
+                quotation.total_price,
+                content_str
+            )
+            
+            state['quotation_id'] = q_id
+            
+            summary = f"Generated Quote #{q_id} with {len(quotation.matches)} items. Total: ${quotation.total_price:,.2f}"
+            state['draft_reply'] = summary
+            
         except Exception as e:
+            print(f"❌ Auto-Quote Failed: {e}")
             state['error'] = str(e)
+            state['quotation_id'] = None
+            
     return state
 
 async def draft_email_node(state: EmailState) -> EmailState:
@@ -55,13 +77,19 @@ async def draft_email_node(state: EmailState) -> EmailState:
     
     if state.get('error'):
         prompt = f"Draft a polite email to {state['sender']} apologizing that we couldn't process their request automatically. Error: {state['error']}"
-    elif state['intent'] == 'rfp':
+    elif state['intent'] == 'rfp' and state.get('quotation_id'):
+        # Link to the dashboard for the internal user (in the draft note) or just tell the client
+        dashboard_link = f"http://localhost:3000/quotation/{state['quotation_id']}"
+        
         prompt = f"""
         You are a Sales Engineer assistant. Draft a reply to {state['sender']}.
         
-        Context: You successfully processed their RFP.
+        Context: You successfully processed their RFP and created Quote #{state['quotation_id']}.
         Stats: {state['draft_reply']}
-        Action: Tell them the quotation is attached (Draft) and a human engineer will review it shortly.
+        
+        Action: Tell them the quotation has been drafted and is currently under engineering review. 
+        It will be sent shortly.
+        
         Tone: Professional, helpful, concise.
         """
     else:
@@ -81,7 +109,6 @@ def build_email_agent():
     
     graph.set_entry_point("classify")
     
-    # Conditional Edge
     def route_intent(state):
         if 'rfp' in state['intent']:
             return "process_quote"
