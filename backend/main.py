@@ -1,7 +1,9 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # Absolute imports
@@ -17,9 +19,12 @@ from api.auth import router as auth_router
 from api.opportunities import router as opportunities_router
 from api.activity import router as activity_router
 from api.email_bot import router as email_bot_router
-# New Import
+import api.visual_search as visual_search 
 from api.rag import router as rag_router 
 from services.embeddings import embed_all_items_missing, embed_all_products_missing
+
+# Ensure static upload directory exists
+os.makedirs("static/uploads", exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,8 +55,12 @@ def create_app() -> FastAPI:
         CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
     )
 
-    app.include_router(recommend_router)
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+    # Important: items_router includes the new PUT /items/{id}
     app.include_router(items_router)
+    
+    app.include_router(recommend_router)
     app.include_router(users_router)
     app.include_router(interactions_router)
     app.include_router(abtest_router)
@@ -60,7 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(opportunities_router)
     app.include_router(activity_router)
     app.include_router(email_bot_router)
-    # Register RAG
+    app.include_router(visual_search.router, prefix="/visual-search", tags=["Visual Search"])
     app.include_router(rag_router)
 
     @app.get("/")

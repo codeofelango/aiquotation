@@ -120,3 +120,10 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
 UPDATE products 
 SET image_url = '/placeholder-fixture.png' 
 WHERE image_url IS NULL;
+
+
+-- Add a column to store multiple image URLs as an array of text
+ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT[] DEFAULT '{}';
+
+-- Ensure image_url is still there (it serves as the primary/thumbnail)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;

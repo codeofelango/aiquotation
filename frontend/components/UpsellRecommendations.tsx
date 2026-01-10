@@ -7,69 +7,78 @@ type UpsellProps = {
     onAddItem: (item: any) => void;
 };
 
-// Simulated "AI" Logic for Upselling
-const RULES = [
-    { keyword: "Strip", required: ["Driver", "Profile"], suggestion: { title: "24V LED Driver - 100W", price: 45, description: "Essential for powering LED strips safely." } },
-    { keyword: "Tape", required: ["Driver"], suggestion: { title: "Aluminum Profile Kit", price: 15, description: "Heat dissipation and clean installation for tapes." } },
-    { keyword: "Panel", required: ["Suspension"], suggestion: { title: "Emergency Battery Pack (3hr)", price: 35, description: "Mandatory for compliance in office escapes." } },
-    { keyword: "Downlight", required: ["Dimmer"], suggestion: { title: "Smart Dimmer Module", price: 55, description: "Enable app control and dimming." } },
-    { keyword: "High Bay", required: ["Sensor"], suggestion: { title: "PIR Occupancy Sensor", price: 25, description: "Save energy by turning off when warehouse is empty." } },
-];
-
 export function UpsellRecommendations({ items, onAddItem }: UpsellProps) {
+    // Determine missing items based on rules
     const suggestions = useMemo(() => {
-        const found: any[] = [];
-        const existingTitles = items.map(i => i.product_title.toLowerCase());
+        const itemTitles = items.map(i => i.product_title.toLowerCase());
+        const suggs = [];
 
-        items.forEach(item => {
-            RULES.forEach(rule => {
-                if (item.product_title.includes(rule.keyword)) {
-                    // Check if the suggestion is already in the quote
-                    const alreadyAdded = existingTitles.some(t => t.includes(rule.suggestion.title.toLowerCase()));
-                    if (!alreadyAdded && !found.some(f => f.title === rule.suggestion.title)) {
-                        found.push({
-                            ...rule.suggestion,
-                            reason: `Recommended for your ${item.product_title}`
-                        });
-                    }
-                }
+        // Rule 1: LED Strips usually need Drivers
+        const hasStrip = itemTitles.some(t => t.includes("strip") || t.includes("tape"));
+        const hasDriver = itemTitles.some(t => t.includes("driver") || t.includes("supply"));
+        if (hasStrip && !hasDriver) {
+            suggs.push({
+                product_title: "24V LED Driver (100W)",
+                product_description: "Essential for powering LED strips. IP67 rated.",
+                unit_price: 45.00,
+                quantity: 1,
+                reasoning: "Required for LED Strips",
+                image_url: "https://via.placeholder.com/150?text=Driver"
             });
-        });
-        return found;
+        }
+
+        // Rule 2: Panels often need Suspension Kits or Frames
+        const hasPanel = itemTitles.some(t => t.includes("panel") || t.includes("troffer"));
+        const hasMount = itemTitles.some(t => t.includes("suspension") || t.includes("frame") || t.includes("clip"));
+        if (hasPanel && !hasMount) {
+            suggs.push({
+                product_title: "Suspension Mounting Kit",
+                product_description: "1m adjustable steel wire kit for panels.",
+                unit_price: 12.50,
+                quantity: 1,
+                reasoning: "Often needed for install",
+                image_url: "https://via.placeholder.com/150?text=Kit"
+            });
+        }
+
+         // Rule 3: High bay lights often need motion sensors
+         const hasHighbay = itemTitles.some(t => t.includes("high bay") || t.includes("ufo"));
+         const hasSensor = itemTitles.some(t => t.includes("sensor") || t.includes("control"));
+         if (hasHighbay && !hasSensor) {
+             suggs.push({
+                 product_title: "Microwave Motion Sensor",
+                 product_description: "Plug-and-play sensor for extra energy savings.",
+                 unit_price: 35.00,
+                 quantity: 1,
+                 reasoning: "Increases energy savings",
+                 image_url: "https://via.placeholder.com/150?text=Sensor"
+             });
+         }
+
+        return suggs;
     }, [items]);
 
     if (suggestions.length === 0) return null;
 
     return (
-        <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 mb-6">
-            <h3 className="font-bold text-orange-800 text-sm flex items-center gap-2 mb-3">
-                <span>🎁</span> Frequently Bought Together (Increase Value)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="mb-6 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+                <span className="bg-orange-100 text-orange-600 p-1 rounded-md text-xs">💡 Smart Tip</span>
+                <h4 className="text-sm font-bold text-orange-900">Recommended Add-ons</h4>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {suggestions.map((s, i) => (
-                    <div key={i} className="bg-white border border-orange-200 p-3 rounded-lg shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div key={i} className="bg-white p-3 rounded-lg border border-orange-100 shadow-sm flex items-center justify-between gap-3">
                         <div>
-                            <div className="font-bold text-slate-800 text-sm">{s.title}</div>
-                            <div className="text-xs text-slate-500 mb-2">{s.description}</div>
-                            <div className="text-[10px] text-orange-600 font-medium italic mb-2">{s.reason}</div>
+                            <div className="font-bold text-slate-800 text-sm">{s.product_title}</div>
+                            <div className="text-xs text-slate-500">{s.reasoning}</div>
                         </div>
-                        <div className="flex justify-between items-center mt-2">
-                            <span className="font-mono font-bold text-slate-700">${s.price}</span>
-                            <button 
-                                onClick={() => onAddItem({
-                                    product_title: s.title,
-                                    product_description: s.description,
-                                    quantity: 1,
-                                    unit_price: s.price,
-                                    price: s.price,
-                                    image_url: "https://placehold.co/100x100?text=Accessory", // Placeholder
-                                    requirement_id: "ACC-UPSELL"
-                                })}
-                                className="bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-orange-600 transition-colors"
-                            >
-                                + Add
-                            </button>
-                        </div>
+                        <button 
+                            onClick={() => onAddItem(s)}
+                            className="bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-orange-600 transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            + Add ${s.unit_price}
+                        </button>
                     </div>
                 ))}
             </div>

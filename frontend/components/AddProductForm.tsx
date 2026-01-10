@@ -1,21 +1,28 @@
 "use client";
 
 import { useState } from "react";
-// Import from the actions file located in app/items/actions.ts
-// Relative path from components/ is ../app/items/actions
 import { addNewProduct } from "../app/items/actions";
 
 export function AddProductForm() {
     const [isSaving, setIsSaving] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    const [previews, setPreviews] = useState<string[]>([]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            const newPreviews = files.map(file => URL.createObjectURL(file));
+            setPreviews(newPreviews);
+        }
+    };
 
     const handleSubmit = async (formData: FormData) => {
         setIsSaving(true);
         try {
             await addNewProduct(formData);
             setIsOpen(false); 
-            // Reset form logic would go here if using refs or controlled inputs
-            // For simple FormData, closing re-renders often suffices or form.reset() via ref
+            setPreviews([]);
+            // Note: In a real app, reset the form ref here
         } catch (e) {
             console.error(e);
             alert("Failed to save product");
@@ -77,13 +84,43 @@ export function AddProductForm() {
                             </div>
                         </div>
 
-                        {/* Column 3: Description & Action */}
+                        {/* Column 3: Images & Details */}
                         <div className="flex flex-col h-full space-y-5">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Details</h3>
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Images & Details</h3>
+                            
+                            {/* Image Upload Area */}
+                            <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors relative">
+                                <input 
+                                    type="file" 
+                                    name="images" 
+                                    multiple 
+                                    accept="image/*"
+                                    onChange={handleFileChange}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                                <div className="pointer-events-none">
+                                    <span className="text-2xl block mb-1">📷</span>
+                                    <span className="text-xs font-bold text-brand">Click to Upload Images</span>
+                                    <p className="text-[10px] text-slate-400">Select multiple files</p>
+                                </div>
+                            </div>
+
+                            {/* Preview Grid */}
+                            {previews.length > 0 && (
+                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                    {previews.map((src, idx) => (
+                                        <div key={idx} className="w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-slate-200 relative">
+                                            <img src={src} alt="Preview" className="w-full h-full object-cover" />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             <div className="flex-1">
                                 <label className="block text-sm font-semibold text-slate-700 mb-1">Full Description</label>
-                                <textarea name="description" placeholder="Enter detailed specifications..." className="input-field w-full h-32 resize-none" />
+                                <textarea name="description" placeholder="Enter detailed specifications..." className="input-field w-full h-24 resize-none" />
                             </div>
+                            
                             <button 
                                 type="submit" 
                                 disabled={isSaving}
@@ -94,10 +131,10 @@ export function AddProductForm() {
                                 {isSaving ? (
                                     <>
                                         <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
-                                        <span>Saving...</span>
+                                        <span>Uploading & Saving...</span>
                                     </>
                                 ) : (
-                                    "+ Save Product to Catalog"
+                                    "+ Save Product"
                                 )}
                             </button>
                         </div>

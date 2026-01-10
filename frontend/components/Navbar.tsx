@@ -52,6 +52,8 @@ export function Navbar() {
                 <Link href="/opportunities" className={isActive("/opportunities")}>Pipeline</Link>
 				<Link href="/quotation" className={isActive("/quotation")}>Quotations</Link>
 				<Link href="/items" className={isActive("/items")}>Catalog</Link>
+                <Link href="/visual-search" className={isActive("/visual-search")}>Visual Search</Link>
+
                 {/* Updated Link */}
                 <Link href="/docchat" className={isActive("/docchat")}>Docs Chat</Link>
                 <Link href="/activity" className={isActive("/activity")}>Activity</Link>

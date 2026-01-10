@@ -2,98 +2,101 @@
 
 import { useState, useMemo } from "react";
 
-type ROICalculatorProps = {
-    totalNewWattage: number; // Total wattage of the new quotation
-    totalCost: number;       // Total investment cost
+type EnergyProps = {
+    totalNewWattage: number;
+    totalCost: number;
 };
 
-export function EnergyROICalculator({ totalNewWattage, totalCost }: ROICalculatorProps) {
-    // Defaults: Commercial rates (approx $0.15/kWh) and 12 hours/day operation
-    const [energyRate, setEnergyRate] = useState(0.15);
-    const [dailyHours, setDailyHours] = useState(12);
-    const [daysPerYear, setDaysPerYear] = useState(260); // Commercial year
-    
-    // Estimate old wattage (assuming a 50% reduction for typical LED upgrades if not known)
-    // In a real app, you'd let the user input "Existing Fixture Wattage" per line item.
-    const [existingWattage, setExistingWattage] = useState(totalNewWattage * 2.5); 
+export function EnergyROICalculator({ totalNewWattage, totalCost }: EnergyProps) {
+    const [hoursPerDay, setHoursPerDay] = useState(12);
+    const [daysPerWeek, setDaysPerWeek] = useState(5);
+    const [energyCost, setEnergyCost] = useState(0.15); // $ per kWh
+    const [legacyMultiplier, setLegacyMultiplier] = useState(2.5); // Fluorescent is approx 2.5x LED wattage
 
-    const stats = useMemo(() => {
-        const annualHours = dailyHours * daysPerYear;
-        
-        // kWh consumption
-        const oldKwh = (existingWattage * annualHours) / 1000;
-        const newKwh = (totalNewWattage * annualHours) / 1000;
-        
-        // Costs
-        const oldCost = oldKwh * energyRate;
-        const newCost = newKwh * energyRate;
-        
-        const annualSavings = oldCost - newCost;
-        const monthlySavings = annualSavings / 12;
-        const roiMonths = annualSavings > 0 ? (totalCost / annualSavings) * 12 : 0;
-        const fiveYearSavings = (annualSavings * 5) - totalCost;
-
-        return { annualSavings, monthlySavings, roiMonths, fiveYearSavings, oldCost, newCost };
-    }, [energyRate, dailyHours, daysPerYear, existingWattage, totalNewWattage, totalCost]);
+    // Calculations
+    const annualHours = hoursPerDay * daysPerWeek * 52;
+    const oldWattage = totalNewWattage * legacyMultiplier;
+    const energySavedKW = (oldWattage - totalNewWattage) / 1000;
+    const annualSavings = energySavedKW * annualHours * energyCost;
+    const paybackMonths = annualSavings > 0 ? (totalCost / annualSavings) * 12 : 0;
+    const co2Saved = energySavedKW * annualHours * 0.4; // Approx 0.4kg CO2 per kWh
 
     return (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl shadow-xl overflow-hidden">
-            <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                    <span className="text-yellow-400">⚡</span> ROI Investment Analysis
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 p-6 text-white">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                    <span className="text-brand-300">⚡</span> Energy ROI Analysis
                 </h3>
-                <div className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">
-                    Est. Payback: <span className="text-white font-bold">{stats.roiMonths.toFixed(1)} Months</span>
-                </div>
+                <p className="text-slate-400 text-sm mt-1">Show your client how this investment pays for itself.</p>
             </div>
 
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="p-6 grid lg:grid-cols-2 gap-8">
                 {/* Inputs */}
-                <div className="space-y-4 text-sm">
+                <div className="space-y-6">
                     <div>
-                        <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Electricity Rate ($/kWh)</label>
-                        <input type="number" step="0.01" value={energyRate} onChange={e => setEnergyRate(parseFloat(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 focus:border-brand outline-none" />
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="flex-1">
-                            <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Hours/Day</label>
-                            <input type="number" value={dailyHours} onChange={e => setDailyHours(parseFloat(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 focus:border-brand outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Comparison Baseline (Existing Tech)</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[
+                                { label: "Fluorescent", val: 2.2 },
+                                { label: "Halogen", val: 5.0 },
+                                { label: "Metal Halide", val: 3.0 }
+                            ].map((opt) => (
+                                <button
+                                    key={opt.label}
+                                    onClick={() => setLegacyMultiplier(opt.val)}
+                                    className={`py-2 px-3 text-sm font-bold rounded-lg border transition-all ${legacyMultiplier === opt.val ? 'bg-brand text-white border-brand' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
                         </div>
-                        <div className="flex-1">
-                            <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Days/Year</label>
-                            <input type="number" value={daysPerYear} onChange={e => setDaysPerYear(parseFloat(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 focus:border-brand outline-none" />
-                        </div>
                     </div>
+
                     <div>
-                        <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Comparison: Old System Watts</label>
-                        <input type="number" value={existingWattage} onChange={e => setExistingWattage(parseFloat(e.target.value))} className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 focus:border-brand outline-none text-yellow-500 font-mono" />
+                        <div className="flex justify-between mb-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Operating Hours</label>
+                            <span className="text-xs font-bold text-brand">{hoursPerDay}h / day</span>
+                        </div>
+                        <input type="range" min="1" max="24" value={hoursPerDay} onChange={(e) => setHoursPerDay(parseInt(e.target.value))} className="w-full accent-brand" />
+                    </div>
+
+                    <div>
+                        <div className="flex justify-between mb-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Energy Cost ($/kWh)</label>
+                            <span className="text-xs font-bold text-brand">${energyCost.toFixed(2)}</span>
+                        </div>
+                        <input type="number" step="0.01" value={energyCost} onChange={(e) => setEnergyCost(parseFloat(e.target.value))} className="w-full p-2 border border-slate-200 rounded-lg" />
                     </div>
                 </div>
 
-                {/* Big Stats */}
-                <div className="flex flex-col justify-center space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-700 pb-4">
-                        <div className="text-slate-400">Annual Energy Savings</div>
-                        <div className="text-2xl font-bold text-green-400">${stats.annualSavings.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-slate-700 pb-4">
-                        <div className="text-slate-400">5-Year Net Profit</div>
-                        <div className="text-2xl font-bold text-brand-300">${stats.fiveYearSavings.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+                {/* Results Dashboard */}
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-100 flex flex-col justify-center">
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Annual Savings</div>
+                            <div className="text-2xl font-bold text-green-600">${annualSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Payback Period</div>
+                            <div className="text-2xl font-bold text-blue-600">{paybackMonths.toFixed(1)} <span className="text-sm text-slate-400 font-normal">months</span></div>
+                        </div>
                     </div>
                     
-                    {/* Visual Bar */}
-                    <div className="space-y-2">
-                         <div className="flex justify-between text-xs text-slate-500">
-                             <span>Old Bill: ${stats.oldCost.toFixed(0)}</span>
-                             <span>New Bill: ${stats.newCost.toFixed(0)}</span>
-                         </div>
-                         <div className="h-4 bg-slate-700 rounded-full overflow-hidden flex">
-                             <div className="h-full bg-green-500" style={{ width: '100%' }}></div>
-                             <div className="h-full bg-red-500 opacity-30" style={{ width: `${(stats.newCost/stats.oldCost)*100}%` }}></div>
-                         </div>
-                         <div className="text-center text-xs text-green-400 font-bold mt-1">
-                             Reduces energy costs by {((1 - (stats.newCost/stats.oldCost)) * 100).toFixed(0)}%
-                         </div>
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-slate-500">Old System Load</span>
+                            <span className="font-mono font-bold">{(oldWattage/1000).toFixed(1)} kW</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-slate-500">New LED Load</span>
+                            <span className="font-mono font-bold text-green-600">{(totalNewWattage/1000).toFixed(1)} kW</span>
+                        </div>
+                        <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mt-2">
+                            <div className="bg-green-500 h-full" style={{ width: `${(totalNewWattage / oldWattage) * 100}%` }}></div>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-2 text-center">
+                            You reduce energy consumption by {((1 - totalNewWattage/oldWattage) * 100).toFixed(0)}%
+                        </p>
                     </div>
                 </div>
             </div>

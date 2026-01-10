@@ -35,6 +35,15 @@ export async function getUsers() { return getJSON("/users"); }
 export async function getUser(id: number) { const users = await getUsers(); return users.find((u: any) => u.id === id); }
 export async function getProducts() { return getJSON("/items"); }
 export async function addProduct(payload: any) { return getJSON("/items/add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); }
+
+export async function updateProduct(id: number, payload: any) { 
+    return getJSON(`/items/${id}`, { 
+        method: "PUT", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+    }); 
+}
+
 export async function embedAllProducts() { return getJSON("/items/embed_all", { method: "POST" }); }
 export async function searchProducts(query: string) { return getJSON(`/items/search?q=${encodeURIComponent(query)}`); }
 export async function uploadRFP(file: File) {
@@ -65,6 +74,23 @@ export async function chatRag(query: string, sessionId?: string) {
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify({ query, session_id: sessionId }) 
     }); 
+}
+
+// --- Visual Search & Uploads ---
+export async function visualSearch(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/visual-search/search`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Visual search failed');
+    return res.json();
+}
+
+export async function uploadProductImage(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${BASE_URL}/items/upload-image`, { method: "POST", body: formData });
+    if (!res.ok) throw new Error("Image upload failed");
+    return res.json(); 
 }
 
 // Legacy exports
