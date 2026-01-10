@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
-import { getQuotation, updateQuotation, setQuotationStatus, rematchQuotation, getOpportunities } from "@/lib/api";
+import { getQuotation, updateQuotation, setQuotationStatus, rematchQuotation, getOpportunities, searchProducts, searchExternalProduct } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ProductImage } from "@/components/ProductImage";
 import { ValueEngineeringPanel } from "@/components/ValueEngineeringPanel";
@@ -82,6 +82,19 @@ export default function QuotationEditor() {
     
     // Advanced feature state
     const [globalMargin, setGlobalMargin] = useState<number>(30); 
+
+    // --- SEARCH STATE ---
+    const [searchModalOpen, setSearchModalOpen] = useState(false);
+    const [activeReqIndex, setActiveReqIndex] = useState<number | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // --- WEB SEARCH STATE (TAVILY) ---
+    const [webSearchModalOpen, setWebSearchModalOpen] = useState(false);
+    const [webSearchResults, setWebSearchResults] = useState<any[]>([]);
+    const [isWebSearching, setIsWebSearching] = useState(false);
+    const [webSearchQuery, setWebSearchQuery] = useState("");
 
     useEffect(() => { if (id) loadData(); }, [id]);
 
@@ -244,6 +257,105 @@ export default function QuotationEditor() {
         try { await downloadPDF(Number(id)); } catch (e) { alert("Download failed"); }
     };
 
+    // --- SEARCH LOGIC ---
+    const openSearchModal = (idx: number, initialQuery: string) => {
+        setActiveReqIndex(idx);
+        setSearchQuery(initialQuery || "");
+        setSearchModalOpen(true);
+        setSearchResults([]);
+        if (initialQuery) performSearch(initialQuery);
+    };
+
+    const performSearch = async (q: string) => {
+        setIsSearching(true);
+        try {
+            const res = await searchProducts(q);
+            setSearchResults(res);
+        } catch(e) {
+            console.error(e);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const selectProductFromSearch = (product: any) => {
+        if (activeReqIndex === null) return;
+        
+        const req = requirements[activeReqIndex];
+        const newItems = [...items];
+        
+        // Find if this req already has a match item
+        const existingItemIndex = newItems.findIndex(m => m.requirement_id === req.id || m.requirement_id === req.type_id);
+        
+        const wattageMatch = (product.description || "").match(/(\d+)\s*W/i);
+        const estimatedWattage = wattageMatch ? parseInt(wattageMatch[1]) : 20;
+        
+        const newItemData = {
+            requirement_id: req.id || req.type_id,
+            product_id: product.id,
+            product_title: product.title,
+            product_description: product.description,
+            unit_price: product.price,
+            unit_cost: product.price * 0.6, // Default margin assumption
+            quantity: req.Qty ? Number(req.Qty) : 1,
+            price: (req.Qty ? Number(req.Qty) : 1) * product.price,
+            image_url: product.image_url,
+            reasoning: "Manual Selection",
+            alternatives: [],
+            wattage: estimatedWattage
+        };
+
+        if (existingItemIndex >= 0) {
+            // Update existing
+            newItems[existingItemIndex] = {
+                ...newItems[existingItemIndex],
+                ...newItemData,
+                // Preserve quantity from current item if desired, or reset to req
+                quantity: newItems[existingItemIndex].quantity
+            };
+            newItems[existingItemIndex].price = newItems[existingItemIndex].quantity * newItemData.unit_price;
+        } else {
+            // Add new
+            newItems.push(newItemData);
+        }
+
+        setItems(newItems);
+        setSearchModalOpen(false);
+    };
+
+    // --- WEB SEARCH LOGIC (TAVILY) ---
+    const buildWebSearchQuery = (req: any) => {
+        // Construct a detailed search query including description and all attributes
+        return [
+            req.Fixture_Type,
+            req.Description || req.description,
+            req.Wattage,
+            req.Color_Temperature,
+            req.Lumen_Output,
+            req.IP_Rating,
+            req.Beam_Angle
+        ].filter(Boolean).join(" ");
+    };
+
+    const openWebSearchModal = (initialQuery: string) => {
+        setWebSearchQuery(initialQuery || "");
+        setWebSearchModalOpen(true);
+        setWebSearchResults([]);
+        if (initialQuery) performWebSearch(initialQuery);
+    };
+
+    const performWebSearch = async (q: string) => {
+        setIsWebSearching(true);
+        try {
+            const res = await searchExternalProduct(q);
+            setWebSearchResults(res.results || []);
+        } catch(e) {
+            console.error(e);
+        } finally {
+            setIsWebSearching(false);
+        }
+    };
+
     const calculateTotal = () => items.reduce((acc, item) => acc + (item.price || 0), 0);
     const calculateTotalCost = () => items.reduce((acc, item) => acc + ((item.unit_cost || 0) * item.quantity), 0);
     const calculateTotalWattage = () => items.reduce((acc, item) => acc + ((item.wattage || 0) * item.quantity), 0);
@@ -326,6 +438,26 @@ export default function QuotationEditor() {
                                             <div className="flex items-center gap-3 mb-4">
                                                 <span className="bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded shadow-sm">{req.type_id || req.id || `#${i+1}`}</span>
                                                 <input type="text" value={req.Fixture_Type || ""} onChange={(e) => handleSpecChange(i, "Fixture_Type", e.target.value)} className="font-bold text-slate-700 text-sm border-b border-transparent hover:border-slate-300 focus:border-brand bg-transparent outline-none flex-1 transition-colors" placeholder="Fixture Type"/>
+                                                
+                                                {/* SEARCH BUTTON INTEGRATION */}
+                                                <div className="flex items-center gap-1">
+                                                    <button 
+                                                        onClick={() => openSearchModal(i, req.Fixture_Type || req.description || req.Description)}
+                                                        className="p-2 text-slate-400 hover:text-brand transition-colors bg-white rounded-lg border border-slate-200 shadow-sm"
+                                                        title="Search Product Catalog"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                                    </button>
+                                                    
+                                                    {/* NEW WEB SEARCH BUTTON */}
+                                                    <button 
+                                                        onClick={() => openWebSearchModal(buildWebSearchQuery(req))}
+                                                        className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-white rounded-lg border border-slate-200 shadow-sm"
+                                                        title="Search Web (Tavily)"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <textarea value={req.Description || req.description || ""} onChange={(e) => handleSpecChange(i, "description", e.target.value)} className="w-full text-sm text-slate-600 mb-4 p-2 border border-slate-200 rounded bg-white outline-none focus:border-brand" rows={3}/>
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
@@ -499,6 +631,102 @@ export default function QuotationEditor() {
                         </div>
                     )}
                 </div>
+
+                {/* --- SEARCH MODAL (INTERNAL) --- */}
+                {searchModalOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
+                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-800">Search Product Catalog</h3>
+                                <button onClick={() => setSearchModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-2xl leading-none">&times;</button>
+                            </div>
+                            <div className="p-4 border-b border-slate-100">
+                                <form onSubmit={(e) => { e.preventDefault(); performSearch(searchQuery); }} className="flex gap-2">
+                                    <input 
+                                        className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                                        placeholder="Search for fixtures..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button type="submit" disabled={isSearching} className="bg-brand text-white px-6 py-2 rounded-xl font-bold hover:bg-brand-dark transition-all">
+                                        {isSearching ? "Searching..." : "Search"}
+                                    </button>
+                                </form>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
+                                {searchResults.length === 0 ? (
+                                    <div className="text-center py-10 text-slate-400">
+                                        {isSearching ? <LoadingSpinner size="sm" /> : "No results found. Try a different query."}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {searchResults.map((p) => (
+                                            <div key={p.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex gap-3 hover:border-brand transition-colors cursor-pointer group" onClick={() => selectProductFromSearch(p)}>
+                                                <ProductImage src={p.image_url} alt={p.title} className="w-16 h-16 rounded-lg bg-slate-100 object-cover shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-bold text-slate-800 text-sm truncate group-hover:text-brand">{p.title}</div>
+                                                    <div className="text-xs text-slate-500 line-clamp-1">{p.description}</div>
+                                                    <div className="flex justify-between items-center mt-2">
+                                                        <span className="font-mono font-bold text-slate-700 text-xs">${p.price}</span>
+                                                        <button className="bg-brand/10 text-brand text-[10px] font-bold px-2 py-1 rounded hover:bg-brand hover:text-white transition-colors">Select</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- WEB SEARCH MODAL (TAVILY) --- */}
+                {webSearchModalOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
+                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <span>🌍</span> Web Search (Tavily)
+                                </h3>
+                                <button onClick={() => setWebSearchModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-2xl leading-none">&times;</button>
+                            </div>
+                            <div className="p-4 border-b border-slate-100">
+                                <form onSubmit={(e) => { e.preventDefault(); performWebSearch(webSearchQuery); }} className="flex gap-2">
+                                    <input 
+                                        className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                                        placeholder="Search web for specs, price..."
+                                        value={webSearchQuery}
+                                        onChange={(e) => setWebSearchQuery(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <button type="submit" disabled={isWebSearching} className="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-700 transition-all">
+                                        {isWebSearching ? "Searching..." : "Go"}
+                                    </button>
+                                </form>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
+                                {webSearchResults.length === 0 ? (
+                                    <div className="text-center py-10 text-slate-400">
+                                        {isWebSearching ? <LoadingSpinner size="sm" /> : "No results. Search for something to see external results."}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {webSearchResults.map((res: any, idx: number) => (
+                                            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-brand/50 transition-colors">
+                                                <a href={res.url} target="_blank" rel="noopener noreferrer" className="font-bold text-brand hover:underline text-base block mb-1">
+                                                    {res.title}
+                                                </a>
+                                                <div className="text-xs text-green-700 mb-2 truncate">{res.url}</div>
+                                                <p className="text-sm text-slate-600 leading-relaxed">{res.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </AuthGuard>
     );

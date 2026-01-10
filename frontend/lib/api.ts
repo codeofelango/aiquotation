@@ -65,6 +65,9 @@ export async function updateOpportunity(id: number, payload: any) { return getJS
 export async function searchOpportunities(query: string) { return getJSON(`/opportunities/search?q=${encodeURIComponent(query)}`); }
 export async function getActivity(query: string = "") { const url = query ? `/activity?q=${encodeURIComponent(query)}` : "/activity"; return getJSON(url); }
 
+// --- External Search (Tavily) ---
+export async function searchExternalProduct(query: string) { return getJSON(`/external/search-product?query=${encodeURIComponent(query)}`); }
+
 // --- RAG API ---
 export async function getRagSessions() { return getJSON("/rag/sessions"); }
 export async function getRagSessionHistory(sessionId: string) { return getJSON(`/rag/history/${sessionId}`); }

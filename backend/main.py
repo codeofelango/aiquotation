@@ -17,8 +17,8 @@ from api.auth import router as auth_router
 from api.opportunities import router as opportunities_router
 from api.activity import router as activity_router
 from api.email_bot import router as email_bot_router
-from api.email_bot import router as email_bot_router
-import api.visual_search as visual_search  # Visual Search Module
+import api.visual_search as visual_search   # Visual Search Module
+import api.external_search as external_search   # External Search Module
 # New Import
 from api.rag import router as rag_router 
 from services.embeddings import embed_all_items_missing, embed_all_products_missing
@@ -62,7 +62,8 @@ def create_app() -> FastAPI:
     app.include_router(opportunities_router)
     app.include_router(activity_router)
     app.include_router(email_bot_router)
-    app.include_router(visual_search.router, prefix="/visual-search", tags=["Visual Search"]) # Added this line with prefix and tags
+    app.include_router(visual_search.router, prefix="/visual-search", tags=["Visual Search"])
+    app.include_router(external_search.router, prefix="/external", tags=["External Search"])
 
     # Register RAG
     app.include_router(rag_router)
