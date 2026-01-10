@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     embedding_model_name: str = os.getenv("EMBEDDING_MODEL_NAME", "models/text-embedding-004")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+    tavily_api_key: str = os.getenv("TAVILY_API_KEY", "")
 
     # Email Settings (SMTP)
     mail_username: str = os.getenv("MAIL_USERNAME", "apikey")
