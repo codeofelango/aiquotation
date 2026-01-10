@@ -70,10 +70,10 @@ async def add_product(payload: ProductCreate):
     Add a new product and generate its embedding.
     """
     main_image = payload.images[0] if payload.images else None
-    # Correct array literal formatting for Postgres: {"img1", "img2"}
-    images_array_str = "{" + ",".join(f'"{img}"' for img in payload.images) + "}"
+    
+    # FIX: Do not manually format array as string. asyncpg expects a list.
+    # images_array_str = "{" + ",".join(f'"{img}"' for img in payload.images) + "}"
 
-    # FIX: Removed 'title' from INSERT because the DB generates it automatically.
     query = """
         INSERT INTO products (description, fixture_type, wattage, cct, ip_rating, price, indoor_outdoor, images, image_url)
         VALUES ($1, $2, $3, $4, $5, $6, 'General', $7::text[], $8)
@@ -82,20 +82,18 @@ async def add_product(payload: ProductCreate):
     try:
         product_id = await fetchval(
             query, 
-            # payload.title, <--- REMOVED this argument
+            # payload.title, (Removed because it is a generated column)
             payload.description, 
             payload.fixture_type, 
             payload.wattage, 
             payload.cct, 
             payload.ip_rating,
             payload.price,
-            images_array_str,
+            payload.images, # FIX: Pass the list directly
             main_image
         )
         
         # Generate embedding immediately
-        # Note: We might need to fetch the generated title if it's needed for the search text,
-        # but for now we use the payload fields.
         search_text = f"{payload.fixture_type} {payload.title} {payload.description} {payload.wattage} {payload.cct} {payload.ip_rating}"
         await embed_and_store_product(product_id, search_text)
         
@@ -113,11 +111,7 @@ async def update_product(product_id: int, payload: ProductUpdate):
     values = []
     idx = 1
     
-    # FIX: Skipped updating 'title' because it is a generated column.
-    # if payload.title is not None:
-    #     fields.append(f"title = ${idx}")
-    #     values.append(payload.title)
-    #     idx += 1
+    # Skipped updating 'title' because it is a generated column.
 
     if payload.description is not None:
         fields.append(f"description = ${idx}")
@@ -144,9 +138,9 @@ async def update_product(product_id: int, payload: ProductUpdate):
         values.append(payload.price)
         idx += 1
     if payload.images is not None:
-        images_array_str = "{" + ",".join(f'"{img}"' for img in payload.images) + "}"
+        # FIX: Pass list directly, do not format as string
         fields.append(f"images = ${idx}::text[]")
-        values.append(images_array_str)
+        values.append(payload.images)
         idx += 1
         if payload.images:
             fields.append(f"image_url = ${idx}")
@@ -167,7 +161,7 @@ async def update_product(product_id: int, payload: ProductUpdate):
 
         await execute(query, *values)
         
-        # Fetch updated record
+        # Fetch updated record to get generated fields for embedding
         rows = await fetch("SELECT title, description, fixture_type, wattage, cct, ip_rating FROM products WHERE id = $1", product_id)
         
         if rows:
