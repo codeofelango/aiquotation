@@ -127,3 +127,16 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT[] DEFAULT '{}';
 
 -- Ensure image_url is still there (it serves as the primary/thumbnail)
 ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+CREATE TABLE IF NOT EXISTS db_chat_history (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    sql_query TEXT,
+    data_snapshot JSONB,
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_session ON db_chat_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON db_chat_history(timestamp);

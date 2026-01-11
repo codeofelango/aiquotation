@@ -56,6 +56,10 @@ export function Navbar() {
 
                 {/* Updated Link */}
                 <Link href="/docchat" className={isActive("/docchat")}>Docs Chat</Link>
+				<Link href="/db-chat" className={`${isActive("/db-chat")} flex items-center gap-1`}>
+                <span>Data Chat</span>
+                <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NEW</span>
+              </Link>
                 <Link href="/activity" className={isActive("/activity")}>Activity</Link>
                 
                 <div className="h-4 w-px bg-slate-300"></div>

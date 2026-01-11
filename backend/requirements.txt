@@ -20,3 +20,5 @@ google-auth-httplib2
 google-auth-oauthlib
 tavily-python
 requests
+mcp
+tabulate

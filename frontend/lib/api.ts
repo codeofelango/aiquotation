@@ -1,3 +1,4 @@
+// ... existing code ...
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 function getAuthHeaders(options: RequestInit = {}): HeadersInit {
@@ -73,6 +74,15 @@ export async function getRagSessions() { return getJSON("/rag/sessions"); }
 export async function getRagSessionHistory(sessionId: string) { return getJSON(`/rag/history/${sessionId}`); }
 export async function chatRag(query: string, sessionId?: string) {
     return getJSON("/rag/chat", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ query, session_id: sessionId }) 
+    }); 
+}
+
+// --- DB Chat API (NEW) ---
+export async function chatDb(query: string, sessionId?: string | null) {
+    return getJSON("/db-chat/message", { 
         method: "POST", 
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify({ query, session_id: sessionId }) 
