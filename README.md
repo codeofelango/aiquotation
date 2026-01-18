@@ -469,21 +469,6 @@ GROUP BY u.id, u.name;
 
 ---
 
-## Contributing
-
-This project uses a multi-agent architecture designed for extensibility. To add new agents or modify the recommendation logic, see the `agents/` directory documentation.
-
----
-
-## License
-
-This project is provided as-is for educational and commercial purposes.
-
----
-
-## Acknowledgments
-
-- EURI API for LLM and embedding services
 - Neon for serverless PostgreSQL with pgvector
 - LangGraph for agent orchestration framework
 - Next.js and FastAPI communities for excellent tooling
