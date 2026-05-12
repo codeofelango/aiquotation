@@ -28,7 +28,7 @@ type QuotationItem = {
     alternatives?: MatchCandidate[];
     wattage?: number; 
 };
-type Requirement = { id: string; description: string; Fixture_Type?: string; Wattage?: string; Color_Temperature?: string; IP_Rating?: string; Beam_Angle?: string; Lumen_Output?: string; type_id?: string; };
+type Requirement = { id: string; description: string; Fixture_Type?: string; Wattage?: string; Color_Temperature?: string; IP_Rating?: string; Beam_Angle?: string; Lumen_Output?: string; type_id?: string; Qty?: string | number; };
 
 async function sendQuotationEmail(id: number, email: string) {
     const token = localStorage.getItem("token");
