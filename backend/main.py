@@ -20,7 +20,8 @@ from api.email_bot import router as email_bot_router
 import api.visual_search as visual_search   # Visual Search Module
 import api.external_search as external_search   # External Search Module
 from api.db_chat import router as db_chat_router  # <--- Add this
-
+from api import cpq
+from api import crm
 # New Import
 from api.rag import router as rag_router 
 from services.embeddings import embed_all_items_missing, embed_all_products_missing
@@ -67,6 +68,9 @@ def create_app() -> FastAPI:
     app.include_router(visual_search.router, prefix="/visual-search", tags=["Visual Search"])
     app.include_router(external_search.router, prefix="/external", tags=["External Search"])
     app.include_router(db_chat_router)  # <--- Register DB Chat
+    app.include_router(cpq.router, prefix="/api")
+    app.include_router(crm.router, prefix="/api") # Register CRM
+
     # Register RAG
     app.include_router(rag_router)
 

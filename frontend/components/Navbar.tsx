@@ -29,6 +29,9 @@ export function Navbar() {
     };
 
     const isActive = (path: string) => pathname === path ? "text-brand font-bold" : "hover:text-brand transition-colors";
+    
+    // Helper for dropdown parent active state
+    const isGroupActive = (prefix: string) => pathname?.startsWith(prefix) ? "text-brand font-bold" : "hover:text-brand transition-colors";
 
 	return (
 		<nav className="glass-nav flex items-center justify-between px-8 py-5 mb-0 bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200">
@@ -36,7 +39,7 @@ export function Navbar() {
                 {!imgError ? (
                     <Image 
                         src="/logo.png" 
-                        alt="Project Phoenix" 
+                        alt="QuoteFlow" 
                         width={160}
                         height={40}
                         className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
@@ -44,12 +47,16 @@ export function Navbar() {
                         priority
                     />
                 ) : (
-                    <span className="text-xl font-bold text-brand flex items-center gap-2">⚡ Project Phoenix</span>
+                    <span className="text-xl font-bold text-brand flex items-center gap-2">QuoteFlow</span>
                 )}
 			</Link>
 			<div className="flex items-center gap-6 text-slate-600 font-medium text-sm">
                 <Link href="/" className={isActive("/")}>Home</Link>
+
+
                 <Link href="/opportunities" className={isActive("/opportunities")}>Pipeline</Link>
+
+
 				<Link href="/quotation" className={isActive("/quotation")}>Quotations</Link>
 				<Link href="/items" className={isActive("/items")}>Catalog</Link>
                 <Link href="/visual-search" className={isActive("/visual-search")}>Visual Search</Link>
@@ -57,9 +64,9 @@ export function Navbar() {
                 {/* Updated Link */}
                 <Link href="/docchat" className={isActive("/docchat")}>Docs Chat</Link>
 				<Link href="/db-chat" className={`${isActive("/db-chat")} flex items-center gap-1`}>
-                <span>Data Chat</span>
-                <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NEW</span>
-              </Link>
+                    <span>Data Chat</span>
+                    <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NEW</span>
+                </Link>
                 <Link href="/activity" className={isActive("/activity")}>Activity</Link>
                 
                 <div className="h-4 w-px bg-slate-300"></div>
