@@ -162,3 +162,4 @@ backend/Scripts/
 # Keep these specific files
 !users-with-journeys.json
 !database/*.sql
+!frontend/lib/
